@@ -4,11 +4,12 @@ use serde::Serialize;
 /// Ollama API Doc
 /// https://github.com/ollama/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values
 
-#[derive(Debug, Clone, Default, Builder, Serialize)]
+#[derive(Debug, Clone, Default, Builder, Serialize, PartialEq)]
+#[builder(derive(PartialEq))]
 pub struct Options {
     /// Enable Mirostat sampling for controlling perplexity.
     /// (default: 0, 0 = disabled, 1 = Mirostat, 2 = Mirostat 2.0).
-    #[builder(setter(strip_option))]
+    #[builder(setter(strip_option), default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mirostat: Option<i32>,
 
@@ -16,26 +17,26 @@ pub struct Options {
     /// A lower learning rate will result in slower adjustments, while a higher learning
     /// rate will make the algorithm more responsive.
     /// (Default: 0.1).
-    #[builder(setter(strip_option))]
+    #[builder(setter(strip_option), default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mirostat_eta: Option<f32>,
 
     /// Controls the balance between coherence and diversity of the output.
     /// A lower value will result in more focused and coherent text.
     /// (Default: 5.0).
-    #[builder(setter(strip_option))]
+    #[builder(setter(strip_option), default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mirostat_tau: Option<f32>,
 
     /// Sets the size of the context window used to generate the next token.
     /// (Default: 2048).
-    #[builder(setter(strip_option))]
+    #[builder(setter(strip_option), default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_ctx: Option<i32>,
 
     /// Sets how far back for the model to look back to prevent repetition.
     /// (Default: 64, 0 = disabled, -1 = num_ctx).
-    #[builder(setter(strip_option))]
+    #[builder(setter(strip_option), default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repeat_last_n: Option<i32>,
 
@@ -43,28 +44,28 @@ pub struct Options {
     /// will penalize repetitions more strongly, while a lower value (e.g., 0.9)
     /// will be more lenient.
     /// (Default: 1.1)
-    #[builder(setter(strip_option))]
+    #[builder(setter(strip_option), default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repeat_penalty: Option<f32>,
 
     /// The temperature of the model. Increasing the temperature will make
     /// the model answer more creatively.
     /// (Default: 0.8)
-    #[builder(setter(strip_option))]
+    #[builder(setter(strip_option), default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<i32>,
 
     /// Sets the random number seed to use for generation. Setting this to a
     /// specific number will make the model generate the same text for the same prompt.
     /// (Default: 0)
-    #[builder(setter(strip_option))]
+    #[builder(setter(strip_option), default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub seed: Option<i32>,
 
     /// Sets the stop sequences to use. When this pattern is encountered the LLM
     /// will stop generating text and return. Multiple stop patterns may be set by
     /// specifying multiple separate stop parameters in a modelfile.
-    #[builder(setter(into, strip_option))]
+    #[builder(setter(into, strip_option), default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stop: Option<String>,
 
@@ -72,29 +73,41 @@ pub struct Options {
     /// from the output. A higher value (e.g., 2.0) will reduce the impact more,
     /// while a value of 1.0 disables this setting.
     /// (default: 1)
-    #[builder(setter(strip_option))]
+    #[builder(setter(strip_option), default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tfs_z: Option<f32>,
 
     /// Maximum number of tokens to predict when generating text.
     /// (Default: 128, -1 = infinite generation, -2 = fill context)
-    #[builder(setter(strip_option))]
+    #[builder(setter(strip_option), default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_predict: Option<i32>,
 
     /// Reduces the probability of generating nonsense. A higher value (e.g. 100)
     /// will give more diverse answers, while a lower value (e.g. 10) will be more conservative.
     /// (Default: 40)
-    #[builder(setter(strip_option))]
+    #[builder(setter(strip_option), default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub top_k: Option<i32>,
 
     /// Works together with top-k. A higher value (e.g., 0.95) will lead to more diverse text,
     /// while a lower value (e.g., 0.5) will generate more focused and conservative text.
     /// (Default: 0.9)
-    #[builder(setter(strip_option))]
+    #[builder(setter(strip_option), default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub top_p: Option<f32>,
+}
+
+impl Options {
+    pub fn is_default(&self) -> bool {
+        self == &Options::default()
+    }
+}
+
+impl OptionsBuilder {
+    pub fn is_default(&self) -> bool {
+        self == &OptionsBuilder::default()
+    }
 }
 
 pub trait GetOptionsBuilder {
