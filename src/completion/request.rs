@@ -1,14 +1,16 @@
-use bytes::Bytes;
 use derive_builder::Builder;
 use serde::Serialize;
 
-use crate::options::{GetOptionsBuilder, Options, OptionsBuilder, OptionsConstructor};
+use crate::{
+    format::Format,
+    options::{GetOptionsBuilder, Options, OptionsBuilder, OptionsConstructor},
+};
 
 /// Ollama API Doc
 /// Modelfile: https://github.com/ollama/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values
 
 #[derive(Debug, Clone, Default, Builder, Serialize)]
-pub struct GenerateRequest {
+pub struct CompletionRequest {
     /// Required parameters
 
     /// The model name.
@@ -77,23 +79,10 @@ pub struct GenerateRequest {
     pub keep_alive: Option<usize>,
 }
 
-impl GetOptionsBuilder for GenerateRequestBuilder {
+impl GetOptionsBuilder for CompletionRequestBuilder {
     fn get_options_builder<'a>(&'a mut self) -> &'a mut OptionsBuilder {
         &mut self.options
     }
 }
 
-impl OptionsConstructor for GenerateRequestBuilder {}
-
-#[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
-pub enum Format {
-    #[default]
-    #[serde(rename = "json")]
-    JSON,
-}
-
-impl ToString for Format {
-    fn to_string(&self) -> String {
-        String::from("json")
-    }
-}
+impl OptionsConstructor for CompletionRequestBuilder {}

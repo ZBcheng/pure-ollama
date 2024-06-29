@@ -3,21 +3,24 @@ use reqwest::StatusCode;
 use tokio_stream::{Stream, StreamExt};
 
 use super::{
-    request::GenerateRequest,
+    request::CompletionRequest,
     response::{GenerateResponse, GenerateResponseInner},
 };
 use crate::errors::OllamaError;
 
-pub async fn generate(req: GenerateRequest) -> Result<GenerateResponse, OllamaError> {
+/// Generate a response for a given prompt with a provided model. This is a streaming endpoint,
+/// so there will be a series of responses. The final response object will include statistics and
+/// additional data from the request.
+pub async fn completion(request: CompletionRequest) -> Result<GenerateResponse, OllamaError> {
     let url = format!("xxx/api/generate");
     let resp = reqwest::Client::default()
         .post(url)
-        .json(&req)
+        .json(&request)
         .send()
         .await
         .unwrap();
 
-    match req.stream {
+    match request.stream {
         Some(false) => handle_non_stream(resp).await,
         _ => handle_stream(resp.bytes_stream()).await,
     }

@@ -13,8 +13,7 @@ pub enum OllamaError {
 
     #[error("Ollama Error: {0}")]
     OllamaError(String),
-}
 
-// impl From<reqwest::Error> for OllamaError {
-//     fn from(value: reqwest::Error) -> Self {}
-// }
+    #[error("Invalid Parameter: {0}")]
+    InvalidParameter(String),
+}
