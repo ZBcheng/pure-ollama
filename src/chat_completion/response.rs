@@ -1,19 +1,46 @@
-use std::pin::Pin;
-
 use async_stream::stream;
 use serde::Deserialize;
 use tokio_stream::StreamExt;
 
-use crate::errors::OllamaError;
+use crate::response::OllamaStream;
 
 use super::message::{Message, MessageBuilder};
-
-pub type ChatResponseStream =
-    Pin<Box<dyn tokio_stream::Stream<Item = Result<ChatResponseInner, OllamaError>>>>;
 
 pub enum ChatResponse {
     NonStream(ChatResponseInner),
     Stream(ChatResponseStream),
+}
+
+pub type ChatResponseStream = OllamaStream<ChatResponseInner>;
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct ChatResponseInner {
+    /// The model name.
+    pub model: String,
+
+    pub created_at: String,
+
+    pub done: bool,
+
+    pub message: Option<Message>,
+
+    /// Time spent generating the response.
+    pub total_duration: Option<usize>,
+
+    /// Time spent in nanoseconds loading the model.
+    pub load_duration: Option<usize>,
+
+    /// Number of tokens in the prompt.
+    pub prompt_eval_count: Option<usize>,
+
+    /// Time spent in nanoseconds evaluating the prompt.
+    pub prompt_eval_duration: Option<usize>,
+
+    /// Number of tokens in the response.
+    pub eval_count: Option<usize>,
+
+    /// Time in nanoseconds spent generating the response.
+    pub eval_duration: Option<usize>,
 }
 
 impl ChatResponse {
@@ -58,34 +85,4 @@ impl ChatResponse {
             Self::Stream(s) => s,
         }
     }
-}
-
-#[derive(Debug, Clone, Default, Deserialize)]
-pub struct ChatResponseInner {
-    /// The model name.
-    pub model: String,
-
-    pub created_at: String,
-
-    pub done: bool,
-
-    pub message: Option<Message>,
-
-    /// Time spent generating the response.
-    pub total_duration: Option<usize>,
-
-    /// Time spent in nanoseconds loading the model.
-    pub load_duration: Option<usize>,
-
-    /// Number of tokens in the prompt.
-    pub prompt_eval_count: Option<usize>,
-
-    /// Time spent in nanoseconds evaluating the prompt.
-    pub prompt_eval_duration: Option<usize>,
-
-    /// Number of tokens in the response.
-    pub eval_count: Option<usize>,
-
-    /// Time in nanoseconds spent generating the response.
-    pub eval_duration: Option<usize>,
 }

@@ -4,14 +4,14 @@ use tokio_stream::{Stream, StreamExt};
 
 use super::{
     request::CompletionRequest,
-    response::{GenerateResponse, GenerateResponseInner},
+    response::{CompletionResponse, CompletionResponseInner},
 };
 use crate::errors::OllamaError;
 
 /// Generate a response for a given prompt with a provided model. This is a streaming endpoint,
 /// so there will be a series of responses. The final response object will include statistics and
 /// additional data from the request.
-pub async fn completion(request: CompletionRequest) -> Result<GenerateResponse, OllamaError> {
+pub async fn completion(request: CompletionRequest) -> Result<CompletionResponse, OllamaError> {
     let url = format!("xxx/api/generate");
     let resp = reqwest::Client::default()
         .post(url)
@@ -26,7 +26,7 @@ pub async fn completion(request: CompletionRequest) -> Result<GenerateResponse, 
     }
 }
 
-async fn handle_non_stream(resp: reqwest::Response) -> Result<GenerateResponse, OllamaError> {
+async fn handle_non_stream(resp: reqwest::Response) -> Result<CompletionResponse, OllamaError> {
     let status = resp.status();
     if status != StatusCode::OK {
         let text = resp.text().await.unwrap_or_default();
@@ -40,24 +40,24 @@ async fn handle_non_stream(resp: reqwest::Response) -> Result<GenerateResponse, 
 
     let inner = inner.unwrap();
 
-    match serde_json::from_str::<GenerateResponseInner>(&inner) {
-        Ok(content) => Ok(GenerateResponse::NonStream(content)),
+    match serde_json::from_str::<CompletionResponseInner>(&inner) {
+        Ok(content) => Ok(CompletionResponse::NonStream(content)),
         Err(e) => Err(OllamaError::InvalidResponse(e.to_string())),
     }
 }
 
 async fn handle_stream(
     mut stream: impl Stream<Item = Result<bytes::Bytes, reqwest::Error>> + Unpin + 'static,
-) -> Result<GenerateResponse, OllamaError> {
+) -> Result<CompletionResponse, OllamaError> {
     let resp = stream! {
         while let Some(Ok(item)) = stream.next().await {
-            match serde_json::from_slice::<GenerateResponseInner>(&item) {
+            match serde_json::from_slice::<CompletionResponseInner>(&item) {
                 Ok(inner) => yield Ok(inner),
                 Err(e) => yield Err(OllamaError::InvalidResponse(e.to_string())),
             }
         }
     };
 
-    let response = GenerateResponse::Stream(Box::pin(resp));
+    let response = CompletionResponse::Stream(Box::pin(resp));
     Ok(response)
 }

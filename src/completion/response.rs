@@ -1,21 +1,18 @@
-use std::pin::Pin;
-
 use async_stream::stream;
 use serde::Deserialize;
 use tokio_stream::StreamExt;
 
-use crate::errors::OllamaError;
+use crate::response::OllamaStream;
 
-pub type GenerateResponseStream =
-    Pin<Box<dyn tokio_stream::Stream<Item = Result<GenerateResponseInner, OllamaError>>>>;
+pub type GenerateResponseStream = OllamaStream<CompletionResponseInner>;
 
-pub enum GenerateResponse {
-    NonStream(GenerateResponseInner),
+pub enum CompletionResponse {
+    NonStream(CompletionResponseInner),
     Stream(GenerateResponseStream),
 }
 
-impl GenerateResponse {
-    pub async fn as_non_stream(self) -> GenerateResponseInner {
+impl CompletionResponse {
+    pub async fn as_non_stream(self) -> CompletionResponseInner {
         match self {
             Self::NonStream(inner) => inner,
             Self::Stream(mut s) => {
@@ -49,7 +46,7 @@ impl GenerateResponse {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
-pub struct GenerateResponseInner {
+pub struct CompletionResponseInner {
     /// The model name.
     pub model: String,
 

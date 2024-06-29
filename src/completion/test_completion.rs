@@ -4,7 +4,7 @@ mod tests {
 
     use crate::{
         completion::{
-            completion::completion, request::CompletionRequestBuilder, response::GenerateResponse,
+            completion::completion, request::CompletionRequestBuilder, response::CompletionResponse,
         },
         options::OptionsConstructor,
     };
@@ -34,8 +34,8 @@ mod tests {
 
         let response = completion(request).await.unwrap();
         match response {
-            GenerateResponse::Stream(_) => panic!("unexpected response type: stream"),
-            GenerateResponse::NonStream(resp) => println!("resp: {:?}", resp),
+            CompletionResponse::Stream(_) => panic!("unexpected response type: stream"),
+            CompletionResponse::NonStream(resp) => println!("resp: {:?}", resp),
         }
     }
 
@@ -49,8 +49,8 @@ mod tests {
             .unwrap();
 
         match completion(request).await.unwrap() {
-            GenerateResponse::NonStream(_) => panic!("unexcepted type: non-stream"),
-            GenerateResponse::Stream(mut s) => {
+            CompletionResponse::NonStream(_) => panic!("unexcepted type: non-stream"),
+            CompletionResponse::Stream(mut s) => {
                 while let Some(item) = s.next().await {
                     match item {
                         Ok(inner) => println!("inner: {:?}", inner),
