@@ -1,52 +1,16 @@
 use async_stream::stream;
-use serde::Deserialize;
-use tokio_stream::StreamExt;
+use async_trait::async_trait;
+use bytes::Bytes;
+use serde::{Deserialize, Serialize};
+use tokio_stream::{Stream, StreamExt};
 
-use crate::response::OllamaStream;
+use crate::{
+    errors::OllamaError,
+    response::{OllamaStream, StreamHandler},
+};
 
-pub type GenerateResponseStream = OllamaStream<CompletionResponseInner>;
-
-pub enum CompletionResponse {
-    NonStream(CompletionResponseInner),
-    Stream(GenerateResponseStream),
-}
-
-impl CompletionResponse {
-    pub async fn as_non_stream(self) -> CompletionResponseInner {
-        match self {
-            Self::NonStream(inner) => inner,
-            Self::Stream(mut s) => {
-                let mut response = String::default();
-                let mut parts = vec![];
-                while let Some(Ok(item)) = s.next().await {
-                    response.push_str(&item.response);
-                    parts.push(item);
-                }
-
-                let mut last = parts.pop().unwrap_or_default();
-                last.created_at = parts.first().cloned().unwrap_or_default().created_at;
-                last.response = response;
-
-                last
-            }
-        }
-    }
-
-    pub fn as_stream(self) -> GenerateResponseStream {
-        match self {
-            Self::NonStream(item) => {
-                let s = stream! {
-                    yield Ok(item);
-                };
-                Box::pin(s)
-            }
-            Self::Stream(s) => s,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Default, Deserialize)]
-pub struct CompletionResponseInner {
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CompletionResponse {
     /// The model name.
     pub model: String,
 
@@ -79,4 +43,54 @@ pub struct CompletionResponseInner {
     /// An encoding of the conversation used in this response,
     /// this can be sent in the next request to keep a conversational memory.
     pub context: Option<Vec<usize>>,
+}
+
+#[async_trait]
+impl StreamHandler for CompletionResponse {
+    async fn adapt_stream(
+        mut input: impl Stream<Item = Result<Bytes, reqwest::Error>> + Unpin + Send + Sync + 'static,
+    ) -> OllamaStream<Self> {
+        let resp = stream! {
+            while let Some(item) = input.next().await {
+                match item {
+                    Ok(inner) => {
+                        match serde_json::from_slice(&inner) {
+                            Ok(inner) => yield Ok(inner),
+                            Err(e) => yield Err(OllamaError::InvalidResponse(e.to_string())),
+                        }
+                    },
+                    Err(e) => yield Err(OllamaError::StreamError(e.to_string()))
+                }
+
+            }
+        };
+
+        Box::pin(resp)
+    }
+
+    async fn stream_to_response(
+        input: impl Stream<Item = Result<Bytes, reqwest::Error>> + Unpin + Send + Sync + 'static,
+    ) -> Result<Self, OllamaError> {
+        let mut adapted_stream = Self::adapt_stream(input).await;
+        let mut stream_items = vec![];
+        let mut response = String::default();
+        while let Some(item) = adapted_stream.next().await {
+            match item {
+                Ok(inner) => {
+                    response += &inner.response;
+                    stream_items.push(inner);
+                }
+                Err(e) => return Err(e),
+            }
+        }
+
+        let mut last = stream_items.pop().unwrap();
+        last.response = response;
+
+        if let Some(first) = stream_items.first() {
+            last.created_at = first.created_at.clone();
+        }
+
+        Ok(last)
+    }
 }

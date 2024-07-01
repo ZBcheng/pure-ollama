@@ -1,11 +1,10 @@
 #[cfg(test)]
 mod tests {
+    use tokio::io::{stdout, AsyncWriteExt};
     use tokio_stream::StreamExt;
 
     use crate::{
-        completion::{
-            completion::completion, request::CompletionRequestBuilder, response::CompletionResponse,
-        },
+        completion::{completion::completion, request::CompletionRequestBuilder},
         options::OptionsConstructor,
     };
 
@@ -33,10 +32,8 @@ mod tests {
             .unwrap();
 
         let response = completion(request).await.unwrap();
-        match response {
-            CompletionResponse::Stream(_) => panic!("unexpected response type: stream"),
-            CompletionResponse::NonStream(resp) => println!("resp: {:?}", resp),
-        }
+        let response = response.as_response().await.unwrap();
+        dbg!("{}", response);
     }
 
     #[ignore]
@@ -48,16 +45,15 @@ mod tests {
             .build()
             .unwrap();
 
-        match completion(request).await.unwrap() {
-            CompletionResponse::NonStream(_) => panic!("unexcepted type: non-stream"),
-            CompletionResponse::Stream(mut s) => {
-                while let Some(item) = s.next().await {
-                    match item {
-                        Ok(inner) => println!("inner: {:?}", inner),
-                        Err(e) => panic!("{}", e),
-                    }
-                }
-            }
+        let response = completion(request).await.unwrap();
+        let mut stream = response.as_stream().await.unwrap();
+        let mut out = stdout();
+        while let Some(item) = stream.next().await {
+            out.write(item.unwrap().response.as_bytes()).await.unwrap();
+            out.flush().await.unwrap();
         }
+
+        out.write(b"\n").await.unwrap();
+        out.flush().await.unwrap();
     }
 }

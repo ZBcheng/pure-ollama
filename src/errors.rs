@@ -8,11 +8,14 @@ pub enum OllamaError {
     #[error("Invalid Response: {0}")]
     InvalidResponse(String),
 
-    #[error("Decode Error: {0}")]
-    DecodeError(String),
+    #[error("Parse Error: {0}")]
+    ParseError(String),
 
     #[error("Ollama Error: {0}")]
     OllamaError(String),
+
+    #[error("Stream Error: {0}")]
+    StreamError(String),
 
     #[error("Invalid Parameter: {0}")]
     InvalidParameter(String),

@@ -1,20 +1,18 @@
 use async_stream::stream;
-use serde::Deserialize;
-use tokio_stream::StreamExt;
+use async_trait::async_trait;
+use bytes::Bytes;
+use serde::{Deserialize, Serialize};
+use tokio_stream::{Stream, StreamExt};
 
-use crate::response::OllamaStream;
+use super::message::Message;
+use crate::{
+    chat_completion::message::Role,
+    errors::OllamaError,
+    response::{OllamaStream, StreamHandler},
+};
 
-use super::message::{Message, MessageBuilder};
-
-pub enum ChatResponse {
-    NonStream(ChatResponseInner),
-    Stream(ChatResponseStream),
-}
-
-pub type ChatResponseStream = OllamaStream<ChatResponseInner>;
-
-#[derive(Debug, Clone, Default, Deserialize)]
-pub struct ChatResponseInner {
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ChatResponse {
     /// The model name.
     pub model: String,
 
@@ -43,46 +41,54 @@ pub struct ChatResponseInner {
     pub eval_duration: Option<usize>,
 }
 
-impl ChatResponse {
-    pub async fn as_non_stream(self) -> ChatResponseInner {
-        match self {
-            Self::NonStream(inner) => inner,
-            Self::Stream(mut s) => {
-                let mut message_content = String::default();
-                let mut parts = vec![];
-                while let Some(Ok(item)) = s.next().await {
-                    let content = match &item.message {
-                        Some(msg) => msg.content.as_str(),
-                        None => "",
-                    };
-                    message_content.push_str(content);
-                    parts.push(item);
+#[async_trait]
+impl StreamHandler for ChatResponse {
+    async fn adapt_stream(
+        mut input: impl Stream<Item = Result<Bytes, reqwest::Error>> + Unpin + Send + Sync + 'static,
+    ) -> OllamaStream<Self> {
+        let adapted_stream = stream! {
+            while let Some(item) = input.next().await {
+                match item {
+                    Ok(inner) => {
+                        match serde_json::from_slice(&inner) {
+                            Ok(inner) => yield Ok(inner),
+                            Err(e) => yield Err(OllamaError::InvalidResponse(e.to_string())),
+                        }
+                    },
+                    Err(e) => yield Err(OllamaError::StreamError(e.to_string()))
                 }
-
-                let mut last = parts.pop().unwrap_or_default();
-                last.created_at = parts.first().cloned().unwrap_or_default().created_at;
-                last.message = Some(
-                    MessageBuilder::default()
-                        .role("assistant")
-                        .content(message_content)
-                        .build()
-                        .unwrap(),
-                );
-
-                last
             }
-        }
+        };
+
+        Box::pin(adapted_stream)
     }
 
-    pub fn as_stream(self) -> ChatResponseStream {
-        match self {
-            Self::NonStream(item) => {
-                let s = stream! {
-                    yield Ok(item);
-                };
-                Box::pin(s)
-            }
-            Self::Stream(s) => s,
+    async fn stream_to_response(
+        input: impl Stream<Item = Result<Bytes, reqwest::Error>> + Unpin + Send + Sync + 'static,
+    ) -> Result<Self, OllamaError> {
+        let mut adapted_stream = Self::adapt_stream(input).await;
+        let mut stream_items = vec![];
+        let mut content = String::default();
+        while let Some(Ok(item)) = adapted_stream.next().await {
+            let msg = match &item.message {
+                Some(m) => &m.content,
+                None => "",
+            };
+            content += msg;
+            stream_items.push(item);
         }
+
+        let mut last = stream_items.pop().unwrap();
+        last.message = Some(Message {
+            role: Role::Assistant,
+            content,
+            images: None,
+        });
+
+        if let Some(first) = stream_items.first() {
+            last.created_at = first.created_at.clone();
+        }
+
+        Ok(last)
     }
 }

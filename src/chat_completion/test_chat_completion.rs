@@ -1,12 +1,12 @@
 #[cfg(test)]
 mod tests {
+    use tokio::io::{stdout, AsyncWriteExt};
     use tokio_stream::StreamExt;
 
     use crate::chat_completion::{
         chat,
         message::{MessageBuilder, MessageBuilderError, Role},
         request::ChatCompletionRequestBuilder,
-        response::ChatResponse,
     };
 
     #[test]
@@ -61,12 +61,10 @@ mod tests {
             .build()
             .unwrap();
 
-        match chat(request).await.unwrap() {
-            ChatResponse::Stream(_) => panic!("unexpected response type: stream"),
-            ChatResponse::NonStream(resp) => {
-                println!("resp: {resp:?}");
-            }
-        }
+        let response = chat(request).await.unwrap();
+        let response = response.response().await.unwrap();
+        let resp_str = serde_json::to_string(&response).unwrap();
+        dbg!("response: {:?}", resp_str);
     }
 
     #[ignore]
@@ -84,13 +82,17 @@ mod tests {
             .build()
             .unwrap();
 
-        match chat(request).await.unwrap() {
-            ChatResponse::NonStream(_) => panic!("unexpected response type: non-stream"),
-            ChatResponse::Stream(mut s) => {
-                while let Some(Ok(item)) = s.next().await {
-                    println!("{item:?}");
-                }
-            }
+        let resp = chat(request).await.unwrap();
+        let mut resp_stream = resp.as_stream().await.unwrap();
+
+        let mut out = stdout();
+        while let Some(item) = resp_stream.next().await {
+            out.write(item.unwrap().message.unwrap().content.as_bytes())
+                .await
+                .unwrap();
+            out.flush().await.unwrap();
         }
+        out.write(b"\n").await.unwrap();
+        out.flush().await.unwrap();
     }
 }
