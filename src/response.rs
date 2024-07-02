@@ -20,16 +20,12 @@ impl<T> OllamaResponse<T>
 where
     T: StreamHandler + DeserializeOwned,
 {
+    #[inline]
     pub fn raw_response(self) -> reqwest::Response {
         self.response
     }
 
     pub async fn response(self) -> Result<T, OllamaError> {
-        if self.response.status() != StatusCode::OK {
-            let err_msg = self.response.text().await.unwrap_or_default().to_string();
-            return Err(OllamaError::RequestError(err_msg));
-        }
-
         match self.response.text().await {
             Ok(inner) => match serde_json::from_str(&inner) {
                 Ok(content) => Ok(content),
@@ -40,7 +36,8 @@ where
     }
 
     pub async fn stream(self) -> Result<OllamaStream<T>, OllamaError> {
-        Ok(T::adapt_stream(self.response.bytes_stream()).await)
+        let adapted_stream = T::adapt_stream(self.response.bytes_stream()).await;
+        Ok(adapted_stream)
     }
 
     pub async fn as_stream(self) -> Result<OllamaStream<T>, OllamaError> {
@@ -54,6 +51,23 @@ where
         let response = T::stream_to_response(raw_stream).await?;
         Ok(response)
     }
+}
+
+pub async fn check_response_valid(
+    response: Result<reqwest::Response, reqwest::Error>,
+) -> Result<reqwest::Response, OllamaError> {
+    match response {
+        Ok(r) => check_status_ok(r).await,
+        Err(e) => Err(OllamaError::RequestError(e.to_string())),
+    }
+}
+
+async fn check_status_ok(response: reqwest::Response) -> Result<reqwest::Response, OllamaError> {
+    if response.status() != StatusCode::OK {
+        let err_msg = response.text().await.unwrap_or_default().to_string();
+        return Err(OllamaError::OllamaError(err_msg));
+    }
+    Ok(response)
 }
 
 impl<T> From<reqwest::Response> for OllamaResponse<T> {

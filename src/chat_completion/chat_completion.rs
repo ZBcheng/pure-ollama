@@ -1,5 +1,8 @@
 use super::{request::ChatCompletionRequest, response::ChatResponse};
-use crate::{errors::OllamaError, response::OllamaResponse};
+use crate::{
+    errors::OllamaError,
+    response::{check_response_valid, OllamaResponse},
+};
 
 /// Generate the next message in a chat with a provided model. This is a streaming endpoint,
 /// so there will be a series of responses. Streaming can be disabled using "stream": false.
@@ -12,8 +15,8 @@ pub async fn chat(
         .post(url)
         .json(&request)
         .send()
-        .await
-        .map_err(|e| OllamaError::RequestError(e.to_string()))?;
+        .await;
 
-    Ok(resp.into())
+    let response = check_response_valid(resp).await?;
+    Ok(response.into())
 }

@@ -1,5 +1,8 @@
 use super::{request::CompletionRequest, response::CompletionResponse};
-use crate::{errors::OllamaError, response::OllamaResponse};
+use crate::{
+    errors::OllamaError,
+    response::{check_response_valid, OllamaResponse},
+};
 
 /// Generate a response for a given prompt with a provided model. This is a streaming endpoint,
 /// so there will be a series of responses. The final response object will include statistics and
@@ -12,8 +15,8 @@ pub async fn completion(
         .post(url)
         .json(&request)
         .send()
-        .await
-        .unwrap();
+        .await;
 
-    Ok(resp.into())
+    let response = check_response_valid(resp).await?;
+    Ok(response.into())
 }
