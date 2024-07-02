@@ -5,6 +5,7 @@ mod tests {
 
     use crate::{
         completion::{completion::completion, request::CompletionRequestBuilder},
+        errors::OllamaError,
         options::OptionsConstructor,
     };
 
@@ -55,5 +56,20 @@ mod tests {
 
         out.write(b"\n").await.unwrap();
         out.flush().await.unwrap();
+    }
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_generate_stream_error() {
+        let request = CompletionRequestBuilder::default()
+            .model("unknown model")
+            .prompt("anyway")
+            .build()
+            .unwrap();
+
+        let response = completion(request).await.err().unwrap();
+        let err_msg =
+            String::from("{\"error\":\"model 'unknown model' not found, try pulling it first\"}");
+        assert_eq!(response, OllamaError::OllamaError(err_msg));
     }
 }
