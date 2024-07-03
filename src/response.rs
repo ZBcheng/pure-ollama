@@ -1,15 +1,13 @@
-use std::{marker::PhantomData, pin::Pin};
+use std::marker::PhantomData;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use reqwest::StatusCode;
 use serde::de::DeserializeOwned;
-use tokio_stream::Stream;
 
-use crate::errors::OllamaError;
-
-pub type OllamaStream<T> =
-    Pin<Box<dyn Stream<Item = Result<T, OllamaError>> + Send + Sync + 'static>>;
+use crate::{
+    errors::OllamaError,
+    stream_handler::{OllamaStream, StreamHandler},
+};
 
 pub struct OllamaResponse<T> {
     response: reqwest::Response,
@@ -18,7 +16,7 @@ pub struct OllamaResponse<T> {
 
 impl<T> OllamaResponse<T>
 where
-    T: StreamHandler + DeserializeOwned,
+    T: DeserializeOwned,
 {
     #[inline]
     pub fn raw_response(self) -> reqwest::Response {
@@ -34,7 +32,12 @@ where
             Err(e) => Err(OllamaError::OllamaError(e.to_string())),
         }
     }
+}
 
+impl<T> OllamaResponse<T>
+where
+    T: StreamHandler + DeserializeOwned,
+{
     pub async fn stream(self) -> Result<OllamaStream<T>, OllamaError> {
         let adapted_stream = T::adapt_stream(self.response.bytes_stream()).await;
         Ok(adapted_stream)
@@ -51,6 +54,11 @@ where
         let response = T::stream_to_response(raw_stream).await?;
         Ok(response)
     }
+}
+
+#[async_trait]
+pub trait ResponseValidator {
+    async fn valid(&self) -> Result<reqwest::Response, OllamaError>;
 }
 
 pub async fn check_response_valid(
@@ -77,17 +85,4 @@ impl<T> From<reqwest::Response> for OllamaResponse<T> {
             _marker: PhantomData::default(),
         }
     }
-}
-#[async_trait]
-pub trait StreamHandler
-where
-    Self: Sized,
-{
-    async fn adapt_stream(
-        input: impl Stream<Item = Result<Bytes, reqwest::Error>> + Unpin + Send + Sync + 'static,
-    ) -> OllamaStream<Self>;
-
-    async fn stream_to_response(
-        input: impl Stream<Item = Result<Bytes, reqwest::Error>> + Unpin + Send + Sync + 'static,
-    ) -> Result<Self, OllamaError>;
 }
